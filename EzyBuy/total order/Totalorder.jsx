@@ -5,7 +5,9 @@ import axios from "axios";
 
 function TotalOrders() {
     const [orders, setOrders] = useState([]);
+    const [filteredOrders, setFilteredOrders] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState("");
 
     axios.defaults.withCredentials = true;
 
@@ -17,6 +19,7 @@ function TotalOrders() {
         try {
             const { data } = await axios.get("http://localhost:3001/auth/disporder");
             setOrders(data);
+            setFilteredOrders(data); // Initialize filtered orders with all orders
         } catch (error) {
             console.error("Error fetching orders:", error);
         } finally {
@@ -42,10 +45,9 @@ function TotalOrders() {
             const response = await axios.delete(`http://localhost:3001/auth/deleteorder/${orderId}`);
             
             if (response.status === 200) {
-                // Remove order from UI
                 setOrders(prevOrders => prevOrders.filter(order => order._id !== orderId));
+                setFilteredOrders(prevOrders => prevOrders.filter(order => order._id !== orderId));
 
-                // Update total sales after deletion
                 await axios.put("http://localhost:3001/auth/updatetotalsales");
             } else {
                 console.error("Failed to delete order:", response.data);
@@ -55,6 +57,20 @@ function TotalOrders() {
         }
     };
 
+    // Search Function
+    useEffect(() => {
+        if (searchTerm === "") {
+            setFilteredOrders(orders);
+        } else {
+            const filtered = orders.filter(order =>
+                order.products.some(product =>
+                    product.name.toLowerCase().includes(searchTerm.toLowerCase())
+                )
+            );
+            setFilteredOrders(filtered);
+        }
+    }, [searchTerm, orders]);
+
     if (loading) return <p>Loading orders...</p>;
 
     return (
@@ -62,11 +78,22 @@ function TotalOrders() {
             <Adminheader />
             <div className="orders-container">
                 <h2>Total Orders</h2>
+                
+                {/* Search Bar */}
+                <input
+                    type="text"
+                    placeholder="Search by product name..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="search-bar"
+                />
+
                 <table>
                     <thead>
                         <tr>
                             <th>Order ID</th>
                             <th>Customer</th>
+                            <th>Products</th>
                             <th>Amount</th>
                             <th>Status</th>
                             <th>Address</th>
@@ -75,11 +102,18 @@ function TotalOrders() {
                         </tr>
                     </thead>
                     <tbody>
-                        {orders.length > 0 ? (
-                            orders.map(order => (
+                        {filteredOrders.length > 0 ? (
+                            filteredOrders.map(order => (
                                 <tr key={order._id}>
                                     <td>{order._id}</td>
                                     <td>{order.userEmail}</td>
+                                    <td>
+                                        {order.products.map((product, index) => (
+                                            <div key={index}>
+                                                <strong>{product.name}</strong> (Qty: {product.quantity})
+                                            </div>
+                                        ))}
+                                    </td>
                                     <td>₹{order.totalPrice}</td>
                                     <td>
                                         <select
@@ -100,7 +134,7 @@ function TotalOrders() {
                             ))
                         ) : (
                             <tr>
-                                <td colSpan="7">No orders found.</td>
+                                <td colSpan="8">No matching orders found.</td>
                             </tr>
                         )}
                     </tbody>
